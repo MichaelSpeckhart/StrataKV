@@ -1,0 +1,2 @@
+/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles/edit_cache.dir
+/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles/rebuild_cache.dir

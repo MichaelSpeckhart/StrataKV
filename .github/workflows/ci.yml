@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug, Release]
+    runs-on: ${{ matrix.os }}
+
+    env:
+      BUILD_TYPE: ${{ matrix.build_type }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- Optional but recommended: ccache on Linux/macOS ----
+      - name: Install ccache (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+      - name: Install ccache (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ccache
+
+      - name: Configure ccache
+        if: runner.os != 'Windows'
+        run: |
+          echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ env.BUILD_TYPE }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ env.BUILD_TYPE }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-${{ env.BUILD_TYPE }}-
+
+      # ---- Configure / Build / Test ----
+      - name: Configure (CMake)
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          ${{ runner.os != 'Windows' && format('-DCMAKE_CXX_COMPILER_LAUNCHER={0} -DCMAKE_C_COMPILER_LAUNCHER={0}', 'ccache') || '' }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --build-config ${{ env.BUILD_TYPE }}
