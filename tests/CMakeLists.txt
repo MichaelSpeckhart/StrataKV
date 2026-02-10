@@ -10,7 +10,7 @@ FetchContent_MakeAvailable(Catch2)
 enable_testing()
 
 add_executable(stratakv_tests
-  test_simple_hash_table.cc
+  flat_table_test.cc
 )
 
 target_link_libraries(stratakv_tests

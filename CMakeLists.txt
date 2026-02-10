@@ -12,6 +12,8 @@ add_library(stratakv
 target_include_directories(stratakv
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
+    PUBLIC 
+        ${PROJECT_SOURCE_DIR}/stratakv
 )
 
 include(CTest)
