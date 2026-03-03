@@ -9,9 +9,11 @@ FetchContent_MakeAvailable(Catch2)
 
 enable_testing()
 
-add_executable(stratakv_tests
-  flat_table_test.cc
+set(TEST_SOURCES
+  unique_ptr_tests.cc
 )
+
+add_executable(stratakv_tests ${TEST_SOURCES})
 
 target_link_libraries(stratakv_tests
   PRIVATE
