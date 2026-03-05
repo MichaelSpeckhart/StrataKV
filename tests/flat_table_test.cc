@@ -6,7 +6,8 @@
 #include <cstdint>
 #include <iostream>
 #include <functional>
-
+#include <utility>
+#include <algorithm>
 #include "arena_allocator.h"
 #include "flat_swiss_table.h"
 #include <random>

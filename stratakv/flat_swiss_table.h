@@ -5,7 +5,7 @@
 
 #include <cstdint>
 #include <cstddef>
-
+#include <bit>
 #include <thread>
 
 #include <arm_neon.h>
@@ -22,6 +22,18 @@ static constexpr std::size_t CACHE_LINE_SIZE = 128;
 
 static constexpr ctrl_t CTRL_EMPTY = 0xFF;
 static constexpr ctrl_t CTRL_DELETED = 0XFE;
+
+static constexpr std::size_t next_power_of_two(std::size_t n) {
+    if (n == 0) return 1;
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    return n + 1;
+}
 
 namespace stratakv {
 
@@ -58,7 +70,7 @@ class FlatTable
     public:
 
     explicit FlatTable(std::size_t capacity, allocator_type* allocator, size_t num_shards)
-        : capacity_(capacity), size_(0), num_shards_(num_shards), allocator_(allocator)
+        : capacity_(std::bit_ceil(capacity)), size_(0), num_shards_(num_shards), allocator_(allocator)
     {
         #ifdef STRATAKV_DEBUG_ALLOCATIONS
         std::cout << "FlatSwissTable Constructor: Initializing with Capacity: " << capacity << ", Num Shards: " << num_shards << std::endl;
@@ -122,8 +134,6 @@ class FlatTable
     inline bool insert(const key_type& key, const value_type& value) 
     {
 
-
-
         if (size_ >= static_cast<std::size_t>(capacity_ * LOAD_FACTOR)) 
         {
             // #ifdef STRATAKV_DEBUG_ALLOCATIONS
@@ -155,6 +165,7 @@ class FlatTable
                 values_[idx] = value;
                 return true;
             }
+            // Wrap around logic
             idx = (idx + 1) & (capacity_ - 1);
         }
 
@@ -192,76 +203,55 @@ class FlatTable
     // TODO: Refactor this method to fix the local allocator issues and resize the table to either double or 1.5 the size of the original
     void resize()
     {
-        // GLOBAL LOCKING
-        if (size_ >= static_cast<size_t>(capacity_ * LOAD_FACTOR))
+        if (size_ < static_cast<size_t>(capacity_ * LOAD_FACTOR))
+            return;
+
+        const size_t new_capacity = capacity_ * 2;
+
+        
+        const size_t hot_bytes = new_capacity * (sizeof(key_type) + sizeof(ctrl_t));
+
+        
+        void* hot_block = allocator_->allocate(hot_bytes, 128);
+        if (!hot_block) throw std::bad_alloc();
+
+        ctrl_t*   new_ctrl = static_cast<ctrl_t*>(hot_block);
+        key_type* new_keys = reinterpret_cast<key_type*>(
+            static_cast<std::byte*>(hot_block) + new_capacity * sizeof(ctrl_t));
+
+        value_type* new_values = reinterpret_cast<value_type*>(
+            allocator_->allocate(new_capacity * sizeof(value_type), 128));
+        if (!new_values) throw std::bad_alloc();
+
+        ::memset(new_ctrl, static_cast<uint8_t>(CTRL_EMPTY), new_capacity * sizeof(ctrl_t));
+
+        size_t num_new_entries = 0;
+        for (size_t i = 0; i < capacity_; ++i)
         {
-            // Resize should double the size of the table, rehash the existing elements, then
-            // set the Entries and controls equal to new Entries and controls and delete the previous
-            // ones
+            if (ctrl_[i] == CTRL_EMPTY || ctrl_[i] == CTRL_DELETED)
+                continue;
 
-            size_t new_size = capacity_ * 2;
+            key_type   k    = keys_[i];
+            value_type v    = values_[i];
+            size_t     hash = std::hash<key_type>{}(k);
+            ctrl_t     h2   = static_cast<ctrl_t>((hash >> 57) & 0x7F);
+            size_t     idx  = hash & (new_capacity - 1);
 
-            Arena arena(1 << 30); // 1 GB arena for resizing
-            ArenaAllocator<std::byte> allocator(&arena);
+            while (new_ctrl[idx] != CTRL_EMPTY && new_ctrl[idx] != CTRL_DELETED)
+                idx = (idx + 1) & (new_capacity - 1);
 
-
-            void* hot_block = allocator.allocate(new_size, 128);
-
-            ctrl_t* new_ctrls = static_cast<ctrl_t*>(hot_block);
-            key_type* new_keys = reinterpret_cast<key_type*>(reinterpret_cast<std::byte*>(static_cast<std::byte*>(hot_block) + new_size * sizeof(ctrl_t)));
-
-            value_type* new_values = reinterpret_cast<value_type*>(allocator.allocate(new_size * sizeof(value_type), 128));
-
-
-
-            std::memset(static_cast<uint8_t*>(new_ctrls), static_cast<uint8_t>(CTRL_EMPTY), new_size * sizeof(ctrl_t));
-
-            size_t num_new_entries = 0;
-
-            for (int i = 0; i < capacity_; ++i)
-            {
-                if (ctrl_[i] != CTRL_EMPTY && ctrl_[i] != CTRL_DELETED)
-                {
-                    key_type k = keys_[i];
-                    value_type v = values_[i];
-
-                    const size_t hash = std::hash<key_type>{}(k);
-
-                    auto h2 = (hash >> 57) & 0X7F;
-
-                    auto idx = hash & (new_size - 1);
-
-                    while (true)
-                    {
-                        ctrl_t c = new_ctrls[idx];
-                        if (c == CTRL_EMPTY || c == CTRL_DELETED)
-                        {
-                            new_ctrls[idx] = h2;
-                            new_keys[idx] = k;
-                            new_values[idx] = v;
-
-                            ++num_new_entries;
-
-                            break;
-                        }
-                        idx = (idx + 1) & (new_size - 1);
-                    }
-
-
-                }
-            }
-
-            allocator_->deallocate(nullptr, 0); // Dummy deallocation to match constructor
-
-            allocator = allocator; // Update allocator to the new one used for resizing
-
-            // Resize existing tables
-            this->keys_ = new_keys;
-            this->ctrl_ = new_ctrls;
-            this->capacity_ = new_size;
-            this->size_ = num_new_entries;
-            this->values_ = new_values;
+            new_ctrl[idx]   = h2;
+            new_keys[idx]   = k;
+            new_values[idx] = v;
+            ++num_new_entries;
         }
+
+        
+        ctrl_     = new_ctrl;
+        keys_     = new_keys;
+        values_   = new_values;
+        capacity_ = new_capacity;
+        size_     = num_new_entries;
     }
 
     inline bool erase(const key_type& key)
@@ -341,6 +331,12 @@ class FlatTable
 
     // Cold Data
     value_type* values_ = nullptr;
+
+    // Active Arena
+    Arena arena_a_;
+    Arena arena_b_;
+    Arena* active_;
+    Arena* standby_;
     
 
     // Table properties

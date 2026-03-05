@@ -125,13 +125,13 @@ class Arena
     }
 
     // Destroy all objects but keep the allocated memory
-    void destroy()
-    {
-        offset = 0;
-        munmap(base, total_size);
-        base = nullptr;
-        total_size = 0;
-    }
+    // void destroy()
+    // {
+    //     offset = 0;
+    //     munmap(base, total_size);
+    //     base = nullptr;
+    //     total_size = 0;
+    // }
 
     private:
 
@@ -142,6 +142,7 @@ class Arena
 
 
     Arena(const Arena&) = delete;
+    
     Arena& operator=(const Arena&) = delete;
 
     static std::size_t align_up(std::size_t x, std::size_t a)
@@ -173,7 +174,7 @@ class ArenaAllocator
 
     void deallocate(T* p /*p*/, std::size_t /*n*/ n) noexcept {
         // No-op; arena manages memory lifetime
-        arena_->destroy();
+        // arena_->destroy();
     }
 
     bool operator==(const ArenaAllocator& other) const noexcept {
@@ -189,39 +190,6 @@ class ArenaAllocator
     Arena* arena_;
 };
 
-// static_assert(sizeof(ArenaAllocator) <= (size_t)sysconf(_SC_PAGESIZE), "Arena is too large");
-//
-template <typename value_type, typename allocator_type>
-class StrataAllocator
-{
-
-    public:
-
-    explicit StrataAllocator(allocator_type* allocator) noexcept : allocator_(allocator) {}
-
-    template <typename U, typename V>
-        StrataAllocator(const StrataAllocator<U, V>& other) noexcept : allocator_(other.allocator_) {}
-
-    template <typename U, typename V>
-        friend class StrataAllocator;
-
-    value_type* allocate(std::size_t n)
-    {
-        return static_cast<value_type*>(allocator_->allocate(n*sizeof(value_type), alignof(value_type)));
-    }
-
-    void deallocate(value_type* v, size_t n)
-    {
-        allocator_->deallocate(v, n);
-    }
-
-
-    private:
-
-    allocator_type* allocator_;
-};
-
-static_assert(true, "");
 
 }
 
