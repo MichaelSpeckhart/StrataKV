@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include <mach/vm_statistics.h>
 
 #ifndef STRATAKV_ARENA_ALLOCATOR_H
 #define STRATAKV_ARENA_ALLOCATOR_H
@@ -23,7 +24,7 @@
 namespace stratakv {
 
 
-struct alignas(128) ArenaStats
+struct alignas(8) ArenaStats
 {
     size_t bytes_used; // 8 bytes
     size_t bytes_free; // 8 bytes
@@ -40,18 +41,39 @@ class Arena
 
     constexpr Arena() = default;
 
-    explicit Arena(size_t num_bytes) : total_size(num_bytes), offset(0)
+    explicit Arena(const size_t num_bytes) : total_size(num_bytes), offset(0)
     {
         offset = 0;
         #ifdef STRATAKV_DEBUG_ALLOCATIONS
         std::cout << "Arena Constructor: Initial Offset: " << offset << std::endl;
         #endif
-        size_t page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
-        size_t rounded = align_up(num_bytes, page);
+        const auto page = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+        constexpr size_t SUPERPAGE_2MB = 2 * 1024 * 1024;
+        const size_t rounded = align_up(num_bytes, SUPERPAGE_2MB);
 
         // std::cout << "Rounded Alignment: " << rounded << std::endl;
 
-        void* p = ::mmap(nullptr, rounded, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+        //int superpage_fd = VM_FLAGS_SUPERPAGE_SIZE_2MB;
+
+        constexpr off_t mmap_offset = 0;
+        void* p = MAP_FAILED;
+
+//#if defined(__APPLE__) && defined(VM_FLAGS_SUPERPAGE_SIZE_2MB)
+        // 2. Attempt 2 MiB Superpage allocation on macOS
+        int superpage_fd = VM_FLAGS_SUPERPAGE_SIZE_2MB;
+        p = ::mmap(nullptr, rounded,
+                   PROT_READ | PROT_WRITE,
+                   MAP_ANON | MAP_PRIVATE,
+                   superpage_fd, 0);
+//#endif
+
+        // 3. Fallback to standard 16 KiB page mmap if superpages fail or are unsupported
+        if (p == MAP_FAILED) {
+            p = ::mmap(nullptr, rounded,
+                       PROT_READ | PROT_WRITE,
+                       MAP_ANON | MAP_PRIVATE,
+                       -1, 0);
+        }
 
         if (p == MAP_FAILED)
         {
@@ -65,6 +87,10 @@ class Arena
         total_size = rounded;
     }
 
+    Arena(const Arena&) = delete;
+
+    Arena& operator=(const Arena&) = delete;
+
     ~Arena()
     {
         if (base)
@@ -73,12 +99,12 @@ class Arena
         }
     }
 
-    void* allocate(size_t num_bytes, std::size_t alignment = alignof(std::max_align_t))
+    void* allocate(const size_t num_bytes, std::size_t alignment = alignof(std::max_align_t))
     {
         size_t rounded = align_up(num_bytes, static_cast<size_t>(alignment));
-        std::uintptr_t curr = reinterpret_cast<std::uintptr_t>(base) + offset;
-        std::uintptr_t aligned = align_up(curr, static_cast<std::size_t>(alignment));
-        const std::uintptr_t new_offset = static_cast<std::size_t>(aligned - reinterpret_cast<std::uintptr_t>(base) + num_bytes);
+        const std::uintptr_t curr = reinterpret_cast<std::uintptr_t>(base) + offset;
+        const std::uintptr_t aligned = align_up(curr, static_cast<std::size_t>(alignment));
+        const auto new_offset = static_cast<std::size_t>(aligned - reinterpret_cast<std::uintptr_t>(base) + num_bytes);
 
         
         if (new_offset > total_size)
@@ -86,10 +112,10 @@ class Arena
             return nullptr;
         }
 
-        void* result = reinterpret_cast<void*>(aligned);
+        const auto result = reinterpret_cast<void*>(aligned);
 
         if (result && num_bytes > 0) {
-            volatile uint8_t* p = static_cast<volatile uint8_t*>(result);
+            volatile auto* p = static_cast<volatile uint8_t*>(result);
             p[0] = 0x00;                    
             if (num_bytes > 4096)           
                 p[4096] = 0x00;             
@@ -101,13 +127,13 @@ class Arena
 
     void deallocate(void* v, size_t n)
     {
-        // empty
+        munmap(v, n);
     }
 
 
-    ArenaStats stats() const
+    [[nodiscard]] ArenaStats stats() const
     {
-        ArenaStats stats;
+        ArenaStats stats{};
 
         stats.blocks = 0;
         stats.bytes_free = 0;
@@ -135,15 +161,13 @@ class Arena
 
     private:
 
-    std::byte* region;
-    std::byte* base;
-    size_t total_size;
-    std::size_t offset;
+    std::byte* region{};
+    std::byte* base{};
+    size_t total_size{};
+    std::size_t offset{};
 
 
-    Arena(const Arena&) = delete;
-    
-    Arena& operator=(const Arena&) = delete;
+
 
     static std::size_t align_up(std::size_t x, std::size_t a)
     {
@@ -163,18 +187,17 @@ class ArenaAllocator
     explicit ArenaAllocator(Arena* arena) noexcept : arena_(arena) {}
 
     template <typename U>
-        ArenaAllocator(const ArenaAllocator<U>& other) noexcept : arena_(other.arena_) {}
+    explicit ArenaAllocator(const ArenaAllocator<U>& other) noexcept : arena_(other.arena_) {}
 
     template <typename U>
         friend class ArenaAllocator;
 
-    T* allocate(std::size_t n, std::size_t alignment = alignof(T)) {
+    T* allocate(const std::size_t n, const std::size_t alignment = alignof(T)) {
         return static_cast<T*>(arena_->allocate(n * sizeof(T), alignment));
     }
 
     void deallocate(T* p /*p*/, std::size_t /*n*/ n) noexcept {
-        // No-op; arena manages memory lifetime
-        // arena_->destroy();
+        arena_->deallocate(p, n);
     }
 
     bool operator==(const ArenaAllocator& other) const noexcept {

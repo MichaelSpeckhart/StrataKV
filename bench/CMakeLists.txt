@@ -15,6 +15,17 @@ add_executable(stratakv_bench_exec
   flat_table_bench.cc
 )
 
+add_executable(unordered_bench_exec
+  unordered_map_bench.cc
+)
+
+target_link_libraries(unordered_bench_exec
+  PRIVATE
+    benchmark::benchmark
+    benchmark::benchmark_main
+    stratakv
+)
+
 target_link_libraries(stratakv_bench_exec
   PRIVATE
     benchmark::benchmark

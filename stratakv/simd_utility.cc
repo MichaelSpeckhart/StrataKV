@@ -5,31 +5,39 @@
 
 #include <chrono>
 
-
-float dot_simd(const float* a, const float *b, size_t length)
+float dot_simd(const float* a, const float* b, const size_t length)
 {
-    float32x4_t acc = vdupq_n_f32(0.0f);
+    // Use 4 independent accumulators to break latency dependency chains
+    float32x4_t acc0 = vdupq_n_f32(0.0f);
+    float32x4_t acc1 = vdupq_n_f32(0.0f);
+    float32x4_t acc2 = vdupq_n_f32(0.0f);
+    float32x4_t acc3 = vdupq_n_f32(0.0f);
 
     size_t i = 0;
 
-    for (; i + 4 <= length; i += 4)
+    // Process 16 floats (64 bytes) per iteration
+    for (; i + 16 <= length; i += 16)
     {
-        // Load 4 floats from each array starting at index i
-        float32x4_t va = vld1q_f32(a + i);
-        float32x4_t vb = vld1q_f32(b + i);
-
-        // Multiply the vectors
-        float32x4_t vm = vmulq_f32(va, vb);
-
-        // Accumulate the results
-        acc = vmlaq_f32(acc, va, vb);
+        // Interleaved loads & fused multiply-add
+        acc0 = vfmaq_f32(acc0, vld1q_f32(a + i + 0),  vld1q_f32(b + i + 0));
+        acc1 = vfmaq_f32(acc1, vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
+        acc2 = vfmaq_f32(acc2, vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
+        acc3 = vfmaq_f32(acc3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
     }
 
-    // Horizontal add to get the final sum
-    float32x2_t s = vadd_f32(vget_low_f32(acc), vget_high_f32(acc));
-    float sum = vget_lane_f32(vpadd_f32(s, s), 0);
+    // Combine the 4 accumulators into 1
+    float32x4_t acc = vaddq_f32(vaddq_f32(acc0, acc1), vaddq_f32(acc2, acc3));
 
-    // Handle remaining elements
+    // Efficient ARM64 horizontal add reduction
+    #if defined(__aarch64__)
+    float sum = vaddvq_f32(acc);
+    #else
+    // Fallback for ARMv7
+    const float32x2_t s = vadd_f32(vget_low_f32(acc), vget_high_f32(acc));
+    float sum = vget_lane_f32(vpadd_f32(s, s), 0);
+    #endif
+
+    // Handle remaining elements (tail loop)
     for (; i < length; ++i)
     {
         sum += a[i] * b[i];
@@ -39,7 +47,8 @@ float dot_simd(const float* a, const float *b, size_t length)
 }
 
 
-float dot(const float* a, const float*b, size_t length)
+
+float dot(const float* a, const float*b, const size_t length)
 {
     float result = 0.0f;
     for (int i = 0; i < length; ++i)
@@ -52,8 +61,7 @@ float dot(const float* a, const float*b, size_t length)
 
 int main()
 {
-
-    const size_t length = 1 << 19;
+    constexpr size_t length = 1 << 19;
     float a[length];
     float b[length];
     for (size_t i = 0; i < length; ++i)
@@ -62,13 +70,11 @@ int main()
         b[i] = static_cast<float>(i * 2);
     }
 
-    std::chrono::high_resolution_clock::time_point start, end;
-
-    start = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
     float result = dot(a, b, length);
 
-    end = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
     std::cout << "Dot Product: " << result << std::endl;
 
@@ -86,12 +92,18 @@ int main()
     std::cout << "Time taken by dot_simd: " << duration.count() <<
                     " ms" << std::endl;
 
+    std::cout << "Reg Result: " << result << std::endl;
+    std::cout << "SIMD Result: " << simd_result << std::endl;
+
     // Compare results and make sure they are the same within error rate
     if (std::abs(result - simd_result) > 1e-1)
     {
         std::cerr << "Results do not match!" << std::endl;
+
         return 1;
     }
+
+
 
 
 

@@ -11,19 +11,21 @@ namespace stratakv {
 
 
 template <class T, class Deleter = std::default_delete<T>>
-requires (std::is_default_constructible_v<Deleter>)
+// requires (std::is_default_constructible_v<Deleter>)
 class UniquePointer {
     public:
 
-    using pointer = T*;
-    using element_type = T;
-    using deleter_type = Deleter;
+    // using pointer = T*;
+    // using element_type = T;
+    // using deleter_type = Deleter;
 
     constexpr UniquePointer(std::nullptr_t = nullptr) noexcept : ptr_(nullptr) {}
 
-    constexpr explicit UniquePointer(T* pointer, Deleter d = Deleter()) : ptr_(pointer), deleter_(std::move(d)) {}
+    constexpr explicit UniquePointer(T* pointer, Deleter d = Deleter()) : ptr_(pointer), deleter_(std::move(d)) {
+        std::cout << "Address of Internal Pointer: " << pointer << "\n";
+    }
 
-    constexpr UniquePointer(UniquePointer&& other) : ptr_(other.release()), deleter_(std::move(other.deleter_)) {}
+    constexpr UniquePointer(UniquePointer&& other) noexcept : ptr_(other.release()), deleter_(std::move(other.deleter_)) {}
 
     UniquePointer(const UniquePointer&) = delete;
 
@@ -98,6 +100,11 @@ class UniquePointer {
     Deleter deleter_;
 };
 
+template <class T, class... Args>
+stratakv::UniquePointer<T> make_unique(T type, Args&&... args) {
+    return stratakv::UniquePointer<T>(new T(std::forward<T>(args)...));
+}
+
 
 // Array Specialization
 
@@ -109,7 +116,7 @@ class UniquePointer<T[], Deleter> {
 
 
     private:
-    T* ptr_;
+    T*ptr_ = nullptr;
     Deleter deleter_;
 };
 

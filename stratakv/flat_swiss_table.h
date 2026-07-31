@@ -7,11 +7,17 @@
 #include <cstddef>
 #include <bit>
 #include <thread>
+#include <iostream>
 
 #include <arm_neon.h>
 
+#if defined(__GNUC__) && !defined(__clang__)
 
-static constexpr double LOAD_FACTOR = 0.9;
+#endif
+
+
+
+static constexpr double LOAD_FACTOR = 0.75;
 
 using ctrl_t = std::uint8_t;
 
@@ -22,6 +28,26 @@ static constexpr std::size_t CACHE_LINE_SIZE = 128;
 
 static constexpr ctrl_t CTRL_EMPTY = 0xFF;
 static constexpr ctrl_t CTRL_DELETED = 0XFE;
+
+// Group represents 1 Cache Line
+template <typename Key = uint64_t, typename Value = uint64_t>
+struct alignas(128) Group128 {
+    static constexpr size_t GROUP_WIDTH = 16;
+    static constexpr size_t SLOTS_PER_GROUP = 7;
+    uint8_t ctrl[GROUP_WIDTH];
+
+    struct Slot {
+        Key key;
+        Value value;
+    } slots[7];
+
+
+};
+
+static_assert(sizeof(Group128<uint64_t, uint64_t>) == 128,
+              "Group must be exactly 128 bytes to fill one Apple Silicon cache line!");
+static_assert(alignof(Group128<uint64_t, uint64_t>) == 128,
+              "Group must be aligned to 128 bytes!");
 
 static constexpr std::size_t next_power_of_two(std::size_t n) {
     if (n == 0) return 1;
@@ -69,280 +95,301 @@ class FlatTable
 {
     public:
 
-    explicit FlatTable(std::size_t capacity, allocator_type* allocator, size_t num_shards)
-        : capacity_(std::bit_ceil(capacity)), size_(0), num_shards_(num_shards), allocator_(allocator)
+    explicit FlatTable(const std::size_t capacity, allocator_type* allocator, const size_t num_shards)
+        : allocator_(allocator), capacity_(std::bit_ceil(capacity)), size_(0), num_shards_(num_shards)
     {
-        #ifdef STRATAKV_DEBUG_ALLOCATIONS
-        std::cout << "FlatSwissTable Constructor: Initializing with Capacity: " << capacity << ", Num Shards: " << num_shards << std::endl;
-        #endif
+        std::size_t needed_slots = static_cast<std::size_t>(capacity_ / LOAD_FACTOR) + 1;
+        std::size_t needed_groups = (capacity_ + GroupType::SLOTS_PER_GROUP - 1) / GroupType::SLOTS_PER_GROUP;
 
-        size_t hot_bytes = capacity * (sizeof(key_type) + sizeof(ctrl_t));
-        
-        void* hot_block = allocator_->allocate(hot_bytes, 128);
 
-        if (hot_block == nullptr) 
-        {
-            #ifdef STRATAKV_DEBUG_ALLOCATIONS
-            std::cerr << "FlatSwissTable Hot Block Allocation Failed for " << hot_bytes << " bytes." << std::endl;
-            #endif
+        num_groups_ = std::bit_ceil(needed_groups < 1 ? 1 : needed_groups);
+        capacity_   = num_groups_ * GroupType::SLOTS_PER_GROUP;
+
+        size_t hot_bytes = capacity_ * (sizeof(ctrl_t));
+
+        size_t total_bytes = num_groups_ * sizeof(GroupType);
+        start_addr = allocator_->allocate(total_bytes);
+
+        if (!start_addr) {
             throw std::bad_alloc();
         }
 
-        // Debug Macro
-        #ifdef STRATAKV_DEBUG_ALLOCATIONS
-        std::cout << "Capacity passed in: " << capacity << std::endl;
-        std::cout << "FlatSwissTable Hot Block Allocation: " << hot_bytes << " bytes at " << hot_block << std::endl;
-        #endif
+        groups_ = new (start_addr) GroupType[num_groups_];
 
-        ctrl_ = static_cast<ctrl_t*>(hot_block);
-        keys_ = reinterpret_cast<key_type*>(reinterpret_cast<std::byte*>(static_cast<std::byte*>(hot_block) + capacity * sizeof(ctrl_t)));
-
-        values_ = reinterpret_cast<value_type*>(allocator_->allocate(capacity * sizeof(value_type), 128));
-        if (values_ == nullptr) {
-            #ifdef STRATAKV_DEBUG_ALLOCATIONS
-            std::cerr << "FlatSwissTable Values Allocation Failed for " << (capacity * sizeof(value_type)) << " bytes." << std::endl;
-            #endif
-            throw std::bad_alloc();
+        for (size_t g = 0; g < num_groups_; ++g) {
+            ::memset(groups_[g].ctrl, static_cast<uint8_t>(CTRL_EMPTY), 16);
         }
 
-        #ifdef STRATAKV_DEBUG_ALLOCATIONS
-        std::cout << "FlatSwissTable Values Allocation: " << (capacity * sizeof(value_type)) << " bytes at " << static_cast<void*>(values_) << std::endl;
-        #endif
-
-        #ifdef STRATAKV_DEBUG_ALLOCATIONS
-            std::cout << "hot_block:        " << hot_block << " (mod 128 = " << (reinterpret_cast<uintptr_t>(hot_block) & 127) << ")\n";
-            std::cout << "keys_ computed:   " << static_cast<void*>(keys_) << " (mod 128 = " << (reinterpret_cast<uintptr_t>(keys_) & 127) << ")\n";
-            std::cout << "alignof(key_type) = " << alignof(key_type) << "\n";
-            std::cout << "sizeof(key_type)  = " << sizeof(key_type) << "\n";
-        #endif
-
-        ::memset(ctrl_, static_cast<uint8_t>(CTRL_EMPTY), capacity * sizeof(ctrl_t));
-
-
-        #ifdef STRATAKV_DEBUG_ALLOCATIONS
-        std::cout << "FlatSwissTable Initialized with Capacity: " << capacity_ << ", Size: " << size_ << std::endl;
-        #endif
+        this->size_ = 0;
     }
 
-    ~FlatTable() 
+    ~FlatTable() = default;
+
+    template <class... Args>
+    bool emplace(Args&&... args)
     {
-        // allocator_->deallocate(ctrl_, capacity_ * (sizeof(key_type) + sizeof(ctrl_t)));
-        // allocator_->deallocate(values_, capacity_ * sizeof(value_type));
+
+
+
+        return false;
     }
 
     // Insert a key-value pair into the table
-    inline bool insert(const key_type& key, const value_type& value) 
+    inline bool insert(const key_type& key, const value_type& value)
     {
-
         if (size_ >= static_cast<std::size_t>(capacity_ * LOAD_FACTOR)) 
         {
-            // #ifdef STRATAKV_DEBUG_ALLOCATIONS
-            // std::cout << "FlatSwissTable Resize Triggered: Size " << size_ << " >= Capacity " << capacity_ << " * Load Factor " << LOAD_FACTOR << std::endl;
-            // #endif
-            return false;
+            resize();
         }
+        __builtin_prefetch(std::addressof(groups_), 0, 1);
+        const std::size_t hash  = hash_key(key);
+        std::size_t group_idx   = (hash >> 7) & (num_groups_ - 1);
+        const auto h2= hash & 0x7F;
 
-        std::size_t hash = std::hash<key_type>{}(key);
-        std::size_t idx = hash & (capacity_ - 1);
-        ctrl_t h2 = static_cast<ctrl_t>((hash >> 57) & 0x7F);
+        const auto initial_group = group_idx;
 
-        // #ifdef STRATAKV_DEBUG_ALLOCATIONS
-        // std::cout << "Inserting Key: " << key << " with Hash: " << hash << " at Index: " << idx << " with h2: " << static_cast<int>(h2) << std::endl;
-        // #endif
-        
-        while (true) 
-        {
-            ctrl_t c = ctrl_[idx];
-            if (c == CTRL_EMPTY || c == CTRL_DELETED) {
-                ctrl_[idx] = h2;
-                keys_[idx] = key;
-                values_[idx] = value;
+        while (true) {
+            __builtin_prefetch(std::addressof(groups_[group_idx]));
+            auto& group = groups_[group_idx];
 
-                ++size_;
-                return true;
-            } else if (c == h2 && keys_[idx] == key) {
-                // Key already exists, update value
-                values_[idx] = value;
-                return true;
+            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
+
+                const uint8_t ctrl = group.ctrl[i];
+
+                if (ctrl == CTRL_EMPTY) {
+                    group.ctrl[i] = h2;
+                    group.slots[i].key = key;
+                    group.slots[i].value = value;
+                    size_++;
+                    return true;
+                }
+                if (ctrl == h2 && group.slots[i].key == key) {
+                    std::cout << "Key exists: " << key << "\n";
+                    std::cout << "Table Size: " << size_ << "\n";
+                    return false;
+                }
             }
-            // Wrap around logic
-            idx = (idx + 1) & (capacity_ - 1);
+
+            group_idx = (group_idx + 1) & (num_groups_ - 1);
+
+            if (group_idx == initial_group) {
+                return false;
+            }
+
         }
 
         return false;
     }
+
 
     inline bool find(const key_type& key, value_type& value_out)
     {
-        std::size_t hash = std::hash<key_type>{}(key);
-        std::size_t idx = hash & (capacity_ - 1);
-        ctrl_t h2 = static_cast<ctrl_t>((hash >> 57) & 0x7F);
+        __builtin_prefetch(std::addressof(groups_), 0, 1);
+        const std::size_t hash = hash_key(key);
+        std::size_t group_idx  = (hash >> 7) & (num_groups_ - 1);
+        const auto h2        = hash & 0x7F;
 
-        while (true) {
-            // SIMD instructions to get a group of ctrl bytes
+        auto initial_group = group_idx;
+        while (true)
+        {
+            __builtin_prefetch(std::addressof(groups_[group_idx]));
+            auto& group = groups_[group_idx];
 
-            // [\0, \0,\0,\0,\0,\0,\0,\0,\0,\0,\0,\0,\0,\0,\0,\0]
 
-            // So we should pass in the address of ctrl_[idx] to load the 16 bytes starting from there
-            // Little Endian assumption for vec comparison
-            ctrl_t c = ctrl_[idx];
-            if (c == CTRL_EMPTY) {
-                std::cout << "Find Miss for Key: " << key << " at Index: " << idx << " with h2: " << static_cast<int>(h2) << std::endl;
-                return false;
-            } else if (c == h2 && keys_[idx] == key) {
-                value_out = values_[idx];
-                return true;
+            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
+
+                const uint8_t ctrl = group.ctrl[i];
+
+                if (ctrl == CTRL_EMPTY) {
+                    return false;
+                }
+                if (ctrl == h2 && group.slots[i].key == key) {
+                    value_out = group.slots[i].value;
+                    return true;
+                }
             }
-            idx = (idx + 1) & (capacity_ - 1);
-            //__builtin_prefetch(&ctrl_[idx], 0, 1);
+
+            group_idx = (group_idx + 1) & (num_groups_ - 1);
+
+            __builtin_prefetch(&groups_[group_idx]);
+
+            if (group_idx == initial_group) {
+                return false;
+            }
         }
 
         return false;
     }
 
-    // TODO: Refactor this method to fix the local allocator issues and resize the table to either double or 1.5 the size of the original
+    // TODO: Refactor to use Group-based layout
     void resize()
     {
-        if (size_ < static_cast<size_t>(capacity_ * LOAD_FACTOR))
-            return;
+        const size_t new_capacity  = capacity_ * 2;
+        const size_t new_num_groups    = (new_capacity + GroupType::SLOTS_PER_GROUP - 1) / GroupType::SLOTS_PER_GROUP;
 
-        const size_t new_capacity = capacity_ * 2;
+        size_t total_bytes = new_num_groups * sizeof(Group128<uint64_t, uint64_t>);
+        void* block = allocator_->allocate(total_bytes);
 
-        
-        const size_t hot_bytes = new_capacity * (sizeof(key_type) + sizeof(ctrl_t));
-
-        
-        void* hot_block = allocator_->allocate(hot_bytes, 128);
-        if (!hot_block) throw std::bad_alloc();
-
-        ctrl_t*   new_ctrl = static_cast<ctrl_t*>(hot_block);
-        key_type* new_keys = reinterpret_cast<key_type*>(
-            static_cast<std::byte*>(hot_block) + new_capacity * sizeof(ctrl_t));
-
-        value_type* new_values = reinterpret_cast<value_type*>(
-            allocator_->allocate(new_capacity * sizeof(value_type), 128));
-        if (!new_values) throw std::bad_alloc();
-
-        ::memset(new_ctrl, static_cast<uint8_t>(CTRL_EMPTY), new_capacity * sizeof(ctrl_t));
-
-        size_t num_new_entries = 0;
-        for (size_t i = 0; i < capacity_; ++i)
-        {
-            if (ctrl_[i] == CTRL_EMPTY || ctrl_[i] == CTRL_DELETED)
-                continue;
-
-            key_type   k    = keys_[i];
-            value_type v    = values_[i];
-            size_t     hash = std::hash<key_type>{}(k);
-            ctrl_t     h2   = static_cast<ctrl_t>((hash >> 57) & 0x7F);
-            size_t     idx  = hash & (new_capacity - 1);
-
-            while (new_ctrl[idx] != CTRL_EMPTY && new_ctrl[idx] != CTRL_DELETED)
-                idx = (idx + 1) & (new_capacity - 1);
-
-            new_ctrl[idx]   = h2;
-            new_keys[idx]   = k;
-            new_values[idx] = v;
-            ++num_new_entries;
+        if (!block) {
+            throw std::bad_alloc();
         }
 
-        
-        ctrl_     = new_ctrl;
-        keys_     = new_keys;
-        values_   = new_values;
-        capacity_ = new_capacity;
-        size_     = num_new_entries;
+        auto* new_groups = new (block) GroupType[new_num_groups];
+
+        for (size_t g = 0; g < new_num_groups; ++g) {
+            ::memset(new_groups[g].ctrl, static_cast<uint8_t>(CTRL_EMPTY), 16);
+        }
+
+        // 3. Rehash all active entries from old groups_ into new_groups
+        for (size_t i = 0; i < num_groups_; ++i) {
+            auto& old_group = groups_[i];
+
+            for (size_t j = 0; j < GroupType::SLOTS_PER_GROUP; ++j) {
+
+                // Skip empty and deleted tombstones
+                const uint8_t old_ctrl = old_group.ctrl[j];
+                if (old_ctrl == CTRL_EMPTY || old_ctrl == CTRL_DELETED) {
+                    continue;
+                }
+
+                const auto& key   = old_group.slots[j].key;
+                const auto& value = old_group.slots[j].value;
+
+                // Compute hash for insertion into new_groups
+                const std::size_t hash = hash_key(key);
+                std::size_t group_idx  = (hash >> 7) & (new_num_groups - 1);
+                const uint8_t h2       = static_cast<uint8_t>(hash & 0x7F);
+
+                // Linear probe across new_groups to place the element
+                bool inserted = false;
+                while (!inserted) {
+                    auto& target_group = new_groups[group_idx];
+
+                    for (size_t k = 0; k < GroupType::SLOTS_PER_GROUP; ++k) {
+                        if (target_group.ctrl[k] == CTRL_EMPTY) {
+                            target_group.ctrl[k]   = h2;
+                            target_group.slots[k].key   = key;
+                            target_group.slots[k].value = value;
+                            inserted = true;
+                            break; // Exit slot loop
+                        }
+                    }
+
+                    if (!inserted) {
+                        group_idx = (group_idx + 1) % new_num_groups; // Advance to next group
+                    }
+                }
+            }
+        }
+
+        for (size_t i = 0; i < num_groups_; ++i) {
+            groups_[i].~GroupType();
+        }
+
+        size_t old_total_bytes = num_groups_ * sizeof(GroupType);
+        allocator_->deallocate(static_cast<std::byte*>(start_addr), old_total_bytes);
+
+        this->groups_ = new_groups;
+        this->num_groups_ = new_num_groups;
+        this->start_addr = block;
+
     }
+
 
     inline bool erase(const key_type& key)
     {
-        std::size_t hash = std::hash<key_type>{}(key);
-        std::size_t idx = hash & (capacity_ - 1);
-        ctrl_t h2 = static_cast<ctrl_t>((hash >> 57) & 0x7F);
+        const std::size_t hash  = hash_key(key);
+        std::size_t group_idx   = (hash >> 7) & (num_groups_ - 1);
+        const auto h2= hash & 0x7F;
 
-        while (true) 
-        {
-            ctrl_t c = ctrl_[idx];
-            if (c == CTRL_EMPTY) {
-                return false;
-            } else if (c == h2 && keys_[idx] == key) {
-                ctrl_[idx] = CTRL_DELETED;
-                --size_;
-                return true;
+        const auto initial_group = group_idx;
+
+        while (true) {
+            auto& group = groups_[group_idx];
+
+            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
+
+                const uint8_t ctrl = group.ctrl[i];
+
+                if (ctrl == CTRL_EMPTY) {
+                    return false;
+                }
+
+                if (ctrl == CTRL_DELETED) {
+                    return false;
+                }
+                if (ctrl == h2 && group.slots[i].key == key) {
+                    group.ctrl[i] = CTRL_DELETED;
+                    return true;
+                }
             }
-            idx = (idx + 1) & (capacity_ - 1);
-        }
 
-        return false;
+            group_idx = (group_idx + 1) & (num_groups_ - 1);
+            __builtin_prefetch(std::addressof(groups_[group_idx]));
+        }
     }
 
-    FlatSwissTableStats stats() 
+    FlatSwissTableStats stats()
     {
         FlatSwissTableStats stats;
-        stats.num_keys = size_;
-        stats.num_buckets = capacity_;
-        stats.num_shards = num_shards_;
-        stats.capacity_per_shard = capacity_ / num_shards_;
-        stats.total_capacity = capacity_;
-        stats.key_size = sizeof(key_type);
-        stats.value_size = sizeof(value_type);
-        stats.allocator_bytes_used = allocator_->bytes_used();
-        stats.allocator_total_size = allocator_->total_size();
+        stats.num_keys            = size_;
+        stats.num_buckets         = capacity_;
+        stats.num_shards          = num_shards_;
+        stats.capacity_per_shard  = capacity_ / num_shards_;
+        stats.total_capacity      = capacity_;
+        stats.key_size            = sizeof(key_type);
+        stats.value_size          = sizeof(value_type);
+        stats.allocator_bytes_used  = allocator_->bytes_used();
+        stats.allocator_total_size  = allocator_->total_size();
         return stats;
     }
 
     inline value_type get(const key_type& key)
     {
-        std::size_t hash = std::hash<key_type>{}(key);
-        std::size_t idx = hash & (capacity_ - 1);
-        ctrl_t h2 = static_cast<ctrl_t>((hash >> 57) & 0x7F);
-
-        while (true) 
-        {
-            ctrl_t c = ctrl_[idx];
-            if (c == CTRL_EMPTY) {
-                return value_type{};
-            } else if (c == h2 && keys_[idx] == key) {
-                return values_[idx];
-            }
-            idx = (idx + 1) & (capacity_ - 1);
-            __builtin_prefetch(&ctrl_[idx], 0, 1);
-        }
         return value_type{};
+        // std::size_t hash = hash_key(key);
+        // std::size_t idx  = hash & (capacity_ - 1);
+        // ctrl_t h2        = static_cast<ctrl_t>((hash >> 57) & 0x7F);
+        //
+        // while (true)
+        // {
+        //     ctrl_t c = ctrl_[idx];
+        //     if (c == CTRL_EMPTY) {
+        //         return value_type{};
+        //     } else if (c == h2 && keys_[idx] == key) {
+        //         return values_[idx];
+        //     }
+        //     idx = (idx + 1) & (capacity_ - 1);
+        // }
+        // return value_type{};
     }
 
 
 
     private:
 
-    // struct alignas(128) Group {
-    //     ctrl_t ctrl[GROUP_WIDTH];
-    //     key_type keys[GROUP_WIDTH];
-    // };
+    inline std::size_t hash_key(const key_type& key) const
+    {
+        return key * 0x9e3779b97f4a7c15ULL;
+    }
 
+    inline uint64_t neon_movemask(uint8x16_t matches) const {
+        uint8x8_t narrowed = vshrn_n_u16(vreinterpretq_u16_u8(matches), 4);
+        return vget_lane_u64(vreinterpret_u64_u8(narrowed), 0);
+    }
+
+    using GroupType = Group128<key_type, value_type>;
+
+    GroupType* groups_;
 
     allocator_type* allocator_;
-
-    // Group* groups = nullptr;
-
-    // Hot Data
-    key_type* keys_     = nullptr;
-    ctrl_t* ctrl_       = nullptr;
-
-    // Cold Data
-    value_type* values_ = nullptr;
-
-    // Active Arena
-    Arena arena_a_;
-    Arena arena_b_;
-    Arena* active_;
-    Arena* standby_;
-    
+    void* start_addr;
 
     // Table properties
     std::size_t capacity_;
     std::size_t size_;
     std::size_t num_shards_;
+    std::size_t num_groups_;
 
 };
 

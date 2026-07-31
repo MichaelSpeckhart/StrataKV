@@ -10,7 +10,7 @@ FetchContent_MakeAvailable(Catch2)
 enable_testing()
 
 set(TEST_SOURCES
-  unique_ptr_tests.cc
+  flat_table_test.cc
 )
 
 add_executable(stratakv_tests ${TEST_SOURCES})
