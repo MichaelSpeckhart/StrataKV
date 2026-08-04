@@ -1,15 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <simple_hash_table.h>
-#include <table_bucket.h>
-#include <map.h>
+#include <../stratakv/misc/table_bucket.h>
+#include <../stratakv/misc/map.h>
 #include <cstdint>
 #include <iostream>
 #include <functional>
 #include <utility>
 #include <algorithm>
-#include "arena_allocator.h"
-#include "flat_swiss_table.h"
+#include "../stratakv/memory/arena_allocator.h"
+#include "../stratakv/container/flat_swiss_table.h"
 #include <random>
 
 #define STRATAKV_DEBUG_ALLOCATIONS

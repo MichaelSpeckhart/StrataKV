@@ -9,45 +9,20 @@
 #include <thread>
 #include <iostream>
 
+
+#include "../internal/group128.h"
+#include "policy/growth.h"
+#include "internal/control_bytes.h"
+
 #include <arm_neon.h>
+
+#include "policy/group.h"
 
 #if defined(__GNUC__) && !defined(__clang__)
 
 #endif
 
-
-
-static constexpr double LOAD_FACTOR = 0.75;
-
-using ctrl_t = std::uint8_t;
-
-static constexpr std::size_t GROUP_WIDTH = 16;
-static constexpr std::size_t CTRL_SIZE = sizeof(ctrl_t);
-
-static constexpr std::size_t CACHE_LINE_SIZE = 128;
-
-static constexpr ctrl_t CTRL_EMPTY = 0xFF;
-static constexpr ctrl_t CTRL_DELETED = 0XFE;
-
-// Group represents 1 Cache Line
-template <typename Key = uint64_t, typename Value = uint64_t>
-struct alignas(128) Group128 {
-    static constexpr size_t GROUP_WIDTH = 16;
-    static constexpr size_t SLOTS_PER_GROUP = 7;
-    uint8_t ctrl[GROUP_WIDTH];
-
-    struct Slot {
-        Key key;
-        Value value;
-    } slots[7];
-
-
-};
-
-static_assert(sizeof(Group128<uint64_t, uint64_t>) == 128,
-              "Group must be exactly 128 bytes to fill one Apple Silicon cache line!");
-static_assert(alignof(Group128<uint64_t, uint64_t>) == 128,
-              "Group must be aligned to 128 bytes!");
+inline int8_t H2(size_t hash) { return hash >> (sizeof(size_t) * 8 - 7); }
 
 static constexpr std::size_t next_power_of_two(std::size_t n) {
     if (n == 0) return 1;
@@ -85,10 +60,19 @@ struct alignas(128) FlatSwissTableShardStats
     std::size_t allocator_total_size;
 };
 
+template <class Policy, class... Params>
+class BaseFlatTable {
+
+};
 
 
+// Growth Policy
 
-template <typename key_type, typename value_type, typename allocator_type>
+template <typename key_type,
+    typename value_type,
+    typename allocator_type,
+    typename group_policy = Group128<key_type, value_type>,
+    typename growth_policy = PowerOfTwoGrowth>
 requires (std::is_trivially_copyable_v<key_type> && std::is_trivially_copyable_v<value_type>
 && std::is_trivially_destructible_v<key_type> && std::is_trivially_destructible_v<value_type>)
 class FlatTable
@@ -98,32 +82,31 @@ class FlatTable
     explicit FlatTable(const std::size_t capacity, allocator_type* allocator, const size_t num_shards)
         : allocator_(allocator), capacity_(std::bit_ceil(capacity)), size_(0), num_shards_(num_shards)
     {
-        std::size_t needed_slots = static_cast<std::size_t>(capacity_ / LOAD_FACTOR) + 1;
-        std::size_t needed_groups = (capacity_ + GroupType::SLOTS_PER_GROUP - 1) / GroupType::SLOTS_PER_GROUP;
+        num_groups_ = growth_policy::groups_for(group_policy::SLOTS_PER_GROUP, capacity_);
+        capacity_   = num_groups_ * group_policy::SLOTS_PER_GROUP;
 
-
-        num_groups_ = std::bit_ceil(needed_groups < 1 ? 1 : needed_groups);
-        capacity_   = num_groups_ * GroupType::SLOTS_PER_GROUP;
-
+        // begin: thrown into allocator policy
         size_t hot_bytes = capacity_ * (sizeof(ctrl_t));
 
-        size_t total_bytes = num_groups_ * sizeof(GroupType);
+        size_t total_bytes = num_groups_ * sizeof(group_policy);
         start_addr = allocator_->allocate(total_bytes);
 
         if (!start_addr) {
             throw std::bad_alloc();
         }
 
-        groups_ = new (start_addr) GroupType[num_groups_];
+        groups_ = new (start_addr) group_policy[num_groups_];
 
         for (size_t g = 0; g < num_groups_; ++g) {
-            ::memset(groups_[g].ctrl, static_cast<uint8_t>(CTRL_EMPTY), 16);
+            ::memset(groups_[g].ctrl, static_cast<uint8_t>(ctrl_t::kEmpty), 16);
         }
+        // end
 
         this->size_ = 0;
     }
 
     ~FlatTable() = default;
+
 
     template <class... Args>
     bool emplace(Args&&... args)
@@ -137,35 +120,35 @@ class FlatTable
     // Insert a key-value pair into the table
     inline bool insert(const key_type& key, const value_type& value)
     {
-        if (size_ >= static_cast<std::size_t>(capacity_ * LOAD_FACTOR)) 
+        if (size_ >= static_cast<std::size_t>(capacity_ * growth_policy::max_load_factor))
         {
             resize();
         }
-        __builtin_prefetch(std::addressof(groups_), 0, 1);
+        __builtin_prefetch(__builtin_addressof(groups_), 0, 1);
         const std::size_t hash  = hash_key(key);
         std::size_t group_idx   = (hash >> 7) & (num_groups_ - 1);
-        const auto h2= hash & 0x7F;
+        const auto h2 = H2(hash);
 
         const auto initial_group = group_idx;
 
         while (true) {
-            __builtin_prefetch(std::addressof(groups_[group_idx]));
+            __builtin_prefetch(__builtin_addressof(groups_[group_idx]));
             auto& group = groups_[group_idx];
 
-            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
+            group.scalar_match(h2);
 
-                const uint8_t ctrl = group.ctrl[i];
+            for (size_t i{}; i < group_policy::SLOTS_PER_GROUP; ++i) {
 
-                if (ctrl == CTRL_EMPTY) {
+                const ctrl_t ctrl = group.ctrl[i];
+
+                if (IsEmpty(ctrl)) {
                     group.ctrl[i] = h2;
                     group.slots[i].key = key;
                     group.slots[i].value = value;
                     size_++;
                     return true;
                 }
-                if (ctrl == h2 && group.slots[i].key == key) {
-                    std::cout << "Key exists: " << key << "\n";
-                    std::cout << "Table Size: " << size_ << "\n";
+                if (ctrl == static_cast<ctrl_t>(h2) && group.slots[i].key == key) {
                     return false;
                 }
             }
@@ -186,8 +169,8 @@ class FlatTable
     {
         __builtin_prefetch(std::addressof(groups_), 0, 1);
         const std::size_t hash = hash_key(key);
-        std::size_t group_idx  = (hash >> 7) & (num_groups_ - 1);
-        const auto h2        = hash & 0x7F;
+        std::size_t group_idx  = growth_policy::index_for(hash, num_groups_);
+        const auto h2        = H2(hash);
 
         auto initial_group = group_idx;
         while (true)
@@ -195,21 +178,18 @@ class FlatTable
             __builtin_prefetch(std::addressof(groups_[group_idx]));
             auto& group = groups_[group_idx];
 
+            auto res = group.match(h2);
 
-            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
-
-                const uint8_t ctrl = group.ctrl[i];
-
-                if (ctrl == CTRL_EMPTY) {
-                    return false;
-                }
-                if (ctrl == h2 && group.slots[i].key == key) {
-                    value_out = group.slots[i].value;
-                    return true;
-                }
+            if (group.ctrl[std::countr_zero(res)] == h2 &&
+                group.slots[std::countr_zero(res).key == key]) {
+                return true;
             }
 
-            group_idx = (group_idx + 1) & (num_groups_ - 1);
+            if (res == 0) {
+                return false;
+            }
+
+            group_idx = growth_policy::next_index(group_idx, num_groups_);
 
             __builtin_prefetch(&groups_[group_idx]);
 
@@ -225,7 +205,7 @@ class FlatTable
     void resize()
     {
         const size_t new_capacity  = capacity_ * 2;
-        const size_t new_num_groups    = (new_capacity + GroupType::SLOTS_PER_GROUP - 1) / GroupType::SLOTS_PER_GROUP;
+        const size_t new_num_groups    = (new_capacity + group_policy::SLOTS_PER_GROUP - 1) / group_policy::SLOTS_PER_GROUP;
 
         size_t total_bytes = new_num_groups * sizeof(Group128<uint64_t, uint64_t>);
         void* block = allocator_->allocate(total_bytes);
@@ -234,21 +214,21 @@ class FlatTable
             throw std::bad_alloc();
         }
 
-        auto* new_groups = new (block) GroupType[new_num_groups];
+        auto* new_groups = new (block) group_policy[new_num_groups];
 
         for (size_t g = 0; g < new_num_groups; ++g) {
-            ::memset(new_groups[g].ctrl, static_cast<uint8_t>(CTRL_EMPTY), 16);
+            ::memset(new_groups[g].ctrl, static_cast<uint8_t>(ctrl_t::kEmpty), 16);
         }
 
         // 3. Rehash all active entries from old groups_ into new_groups
         for (size_t i = 0; i < num_groups_; ++i) {
             auto& old_group = groups_[i];
 
-            for (size_t j = 0; j < GroupType::SLOTS_PER_GROUP; ++j) {
+            for (size_t j = 0; j < group_policy::SLOTS_PER_GROUP; ++j) {
 
                 // Skip empty and deleted tombstones
-                const uint8_t old_ctrl = old_group.ctrl[j];
-                if (old_ctrl == CTRL_EMPTY || old_ctrl == CTRL_DELETED) {
+                const auto old_ctrl = old_group.ctrl[j];
+                if (old_ctrl == ctrl_t::kEmpty || old_ctrl == ctrl_t::kDeleted) {
                     continue;
                 }
 
@@ -265,8 +245,8 @@ class FlatTable
                 while (!inserted) {
                     auto& target_group = new_groups[group_idx];
 
-                    for (size_t k = 0; k < GroupType::SLOTS_PER_GROUP; ++k) {
-                        if (target_group.ctrl[k] == CTRL_EMPTY) {
+                    for (size_t k = 0; k < group_policy::SLOTS_PER_GROUP; ++k) {
+                        if (target_group.ctrl[k] == ctrl_t::kEmpty) {
                             target_group.ctrl[k]   = h2;
                             target_group.slots[k].key   = key;
                             target_group.slots[k].value = value;
@@ -283,10 +263,10 @@ class FlatTable
         }
 
         for (size_t i = 0; i < num_groups_; ++i) {
-            groups_[i].~GroupType();
+            groups_[i].~group_policy();
         }
 
-        size_t old_total_bytes = num_groups_ * sizeof(GroupType);
+        size_t old_total_bytes = num_groups_ * sizeof(group_policy);
         allocator_->deallocate(static_cast<std::byte*>(start_addr), old_total_bytes);
 
         this->groups_ = new_groups;
@@ -307,19 +287,19 @@ class FlatTable
         while (true) {
             auto& group = groups_[group_idx];
 
-            for (size_t i{}; i < GroupType::SLOTS_PER_GROUP; ++i) {
+            for (size_t i{}; i < group_policy::SLOTS_PER_GROUP; ++i) {
 
-                const uint8_t ctrl = group.ctrl[i];
+                const auto ctrl = group.ctrl[i];
 
-                if (ctrl == CTRL_EMPTY) {
+                if (ctrl == ctrl_t::kEmpty) {
                     return false;
                 }
 
-                if (ctrl == CTRL_DELETED) {
+                if (ctrl == ctrl_t::kDeleted) {
                     return false;
                 }
                 if (ctrl == h2 && group.slots[i].key == key) {
-                    group.ctrl[i] = CTRL_DELETED;
+                    group.ctrl[i] = ctrl_t::kDeleted;
                     return true;
                 }
             }
@@ -354,7 +334,7 @@ class FlatTable
         // while (true)
         // {
         //     ctrl_t c = ctrl_[idx];
-        //     if (c == CTRL_EMPTY) {
+        //     if (c == ctrl_t::kEmpty) {
         //         return value_type{};
         //     } else if (c == h2 && keys_[idx] == key) {
         //         return values_[idx];
@@ -368,19 +348,20 @@ class FlatTable
 
     private:
 
+    // Hash Policy
     inline std::size_t hash_key(const key_type& key) const
     {
         return key * 0x9e3779b97f4a7c15ULL;
     }
 
+    // neon Policy
     inline uint64_t neon_movemask(uint8x16_t matches) const {
         uint8x8_t narrowed = vshrn_n_u16(vreinterpretq_u16_u8(matches), 4);
         return vget_lane_u64(vreinterpret_u64_u8(narrowed), 0);
     }
 
-    using GroupType = Group128<key_type, value_type>;
 
-    GroupType* groups_;
+    group_policy* groups_;
 
     allocator_type* allocator_;
     void* start_addr;
@@ -390,9 +371,14 @@ class FlatTable
     std::size_t size_;
     std::size_t num_shards_;
     std::size_t num_groups_;
+    std::size_t tombstones_;
 
 };
 
 } // namespace stratakv
 
 #endif
+
+// Need to define SlotPolicy ->
+// define HashPolicy
+// define

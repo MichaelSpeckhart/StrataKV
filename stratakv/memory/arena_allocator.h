@@ -17,8 +17,8 @@
 #include <vector>
 #include <mach/vm_statistics.h>
 
-#ifndef STRATAKV_ARENA_ALLOCATOR_H
-#define STRATAKV_ARENA_ALLOCATOR_H
+#ifndef STRATAKV_MEMORY_ARENA_ALLOCATOR_H
+#define STRATAKV_MEMORY_ARENA_ALLOCATOR_H
 
 
 namespace stratakv {

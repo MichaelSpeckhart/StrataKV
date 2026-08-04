@@ -1,4 +1,4 @@
-#include <striped_table.h>
+#include <../stratakv/container/striped_table.h>
 
 int main() {
 

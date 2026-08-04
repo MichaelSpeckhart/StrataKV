@@ -5,7 +5,7 @@
 //  Created by Michael Speckhart on 1/13/26.
 //
 
-#include "../stratakv/numa_table_entry.h"
+#include "../stratakv/misc/numa_table_entry.h"
 #include <chrono>
 #include <cstdint>
 #include <vector>

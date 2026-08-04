@@ -3,7 +3,7 @@
 #define STRATAKV_NUMA_TABLE_H
 
 
-#include <numa_table_entry.h>
+#include <../numa_table_entry.h>
 
 #include <stdint.h>
 

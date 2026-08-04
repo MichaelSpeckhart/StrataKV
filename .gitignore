@@ -66,3 +66,17 @@ Makefile
 *.dylib
 *.exe
 *.trace/*
+
+# Misc. files
+*.xml
+*.data
+*.index
+*.plist
+*.zip
+*.iml
+*.json
+*.bin
+*.template
+*.name
+*.exe
+/misc/

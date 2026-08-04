@@ -200,11 +200,13 @@ _deps/googlebenchmark-build/src/clean: _deps/googlebenchmark-build/src/CMakeFile
 
 # Recursive "all" directory target.
 bench/all: bench/CMakeFiles/stratakv_bench_exec.dir/all
+bench/all: bench/CMakeFiles/unordered_bench_exec.dir/all
 bench/all: _deps/googlebenchmark-build/all
 .PHONY : bench/all
 
 # Recursive "codegen" directory target.
 bench/codegen: bench/CMakeFiles/stratakv_bench_exec.dir/codegen
+bench/codegen: bench/CMakeFiles/unordered_bench_exec.dir/codegen
 bench/codegen: _deps/googlebenchmark-build/codegen
 .PHONY : bench/codegen
 
@@ -214,6 +216,7 @@ bench/preinstall: _deps/googlebenchmark-build/preinstall
 
 # Recursive "clean" directory target.
 bench/clean: bench/CMakeFiles/stratakv_bench_exec.dir/clean
+bench/clean: bench/CMakeFiles/unordered_bench_exec.dir/clean
 bench/clean: _deps/googlebenchmark-build/clean
 .PHONY : bench/clean
 
@@ -246,12 +249,12 @@ tests/clean: _deps/catch2-build/clean
 CMakeFiles/stratakv.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/stratakv.dir/build.make CMakeFiles/stratakv.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/stratakv.dir/build.make CMakeFiles/stratakv.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=96,97 "Built target stratakv"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=95 "Built target stratakv"
 .PHONY : CMakeFiles/stratakv.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/stratakv.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 1
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/stratakv.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
 .PHONY : CMakeFiles/stratakv.dir/rule
@@ -263,7 +266,7 @@ stratakv: CMakeFiles/stratakv.dir/rule
 # codegen rule for target.
 CMakeFiles/stratakv.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/stratakv.dir/build.make CMakeFiles/stratakv.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=96,97 "Finished codegen for target stratakv"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=95 "Finished codegen for target stratakv"
 .PHONY : CMakeFiles/stratakv.dir/codegen
 
 # clean rule for target.
@@ -1176,12 +1179,12 @@ tests/CMakeFiles/stratakv_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch
 tests/CMakeFiles/stratakv_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/stratakv_tests.dir/build.make tests/CMakeFiles/stratakv_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/stratakv_tests.dir/build.make tests/CMakeFiles/stratakv_tests.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=99,100 "Built target stratakv_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=98 "Built target stratakv_tests"
 .PHONY : tests/CMakeFiles/stratakv_tests.dir/all
 
 # Build rule for subdir invocation for target.
 tests/CMakeFiles/stratakv_tests.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 83
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 80
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/CMakeFiles/stratakv_tests.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
 .PHONY : tests/CMakeFiles/stratakv_tests.dir/rule
@@ -1193,7 +1196,7 @@ stratakv_tests: tests/CMakeFiles/stratakv_tests.dir/rule
 # codegen rule for target.
 tests/CMakeFiles/stratakv_tests.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/stratakv_tests.dir/build.make tests/CMakeFiles/stratakv_tests.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=99,100 "Finished codegen for target stratakv_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=98 "Finished codegen for target stratakv_tests"
 .PHONY : tests/CMakeFiles/stratakv_tests.dir/codegen
 
 # clean rule for target.
@@ -1208,12 +1211,12 @@ tests/CMakeFiles/stratakv_tests.dir/clean:
 _deps/catch2-build/src/CMakeFiles/Catch2.dir/all:
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78 "Built target Catch2"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76 "Built target Catch2"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 
 # Build rule for subdir invocation for target.
 _deps/catch2-build/src/CMakeFiles/Catch2.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 78
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 76
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2.dir/rule
@@ -1225,7 +1228,7 @@ Catch2: _deps/catch2-build/src/CMakeFiles/Catch2.dir/rule
 # codegen rule for target.
 _deps/catch2-build/src/CMakeFiles/Catch2.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78 "Finished codegen for target Catch2"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76 "Finished codegen for target Catch2"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2.dir/codegen
 
 # clean rule for target.
@@ -1240,12 +1243,12 @@ _deps/catch2-build/src/CMakeFiles/Catch2.dir/clean:
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=79 "Built target Catch2WithMain"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=77,78 "Built target Catch2WithMain"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
 
 # Build rule for subdir invocation for target.
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 79
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 78
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule
@@ -1257,7 +1260,7 @@ Catch2WithMain: _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule
 # codegen rule for target.
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=79 "Finished codegen for target Catch2WithMain"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=77,78 "Finished codegen for target Catch2WithMain"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen
 
 # clean rule for target.
@@ -1274,7 +1277,7 @@ bench/CMakeFiles/stratakv_bench_exec.dir/all: _deps/googlebenchmark-build/src/CM
 bench/CMakeFiles/stratakv_bench_exec.dir/all: _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/all
 	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/stratakv_bench_exec.dir/build.make bench/CMakeFiles/stratakv_bench_exec.dir/depend
 	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/stratakv_bench_exec.dir/build.make bench/CMakeFiles/stratakv_bench_exec.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=98 "Built target stratakv_bench_exec"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=96,97 "Built target stratakv_bench_exec"
 .PHONY : bench/CMakeFiles/stratakv_bench_exec.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1291,7 +1294,7 @@ stratakv_bench_exec: bench/CMakeFiles/stratakv_bench_exec.dir/rule
 # codegen rule for target.
 bench/CMakeFiles/stratakv_bench_exec.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/stratakv_bench_exec.dir/build.make bench/CMakeFiles/stratakv_bench_exec.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=98 "Finished codegen for target stratakv_bench_exec"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=96,97 "Finished codegen for target stratakv_bench_exec"
 .PHONY : bench/CMakeFiles/stratakv_bench_exec.dir/codegen
 
 # clean rule for target.
@@ -1300,18 +1303,52 @@ bench/CMakeFiles/stratakv_bench_exec.dir/clean:
 .PHONY : bench/CMakeFiles/stratakv_bench_exec.dir/clean
 
 #=============================================================================
+# Target rules for target bench/CMakeFiles/unordered_bench_exec.dir
+
+# All Build rule for target.
+bench/CMakeFiles/unordered_bench_exec.dir/all: CMakeFiles/stratakv.dir/all
+bench/CMakeFiles/unordered_bench_exec.dir/all: _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/all
+bench/CMakeFiles/unordered_bench_exec.dir/all: _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/all
+	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/unordered_bench_exec.dir/build.make bench/CMakeFiles/unordered_bench_exec.dir/depend
+	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/unordered_bench_exec.dir/build.make bench/CMakeFiles/unordered_bench_exec.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=99,100 "Built target unordered_bench_exec"
+.PHONY : bench/CMakeFiles/unordered_bench_exec.dir/all
+
+# Build rule for subdir invocation for target.
+bench/CMakeFiles/unordered_bench_exec.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 19
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 bench/CMakeFiles/unordered_bench_exec.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
+.PHONY : bench/CMakeFiles/unordered_bench_exec.dir/rule
+
+# Convenience name for target.
+unordered_bench_exec: bench/CMakeFiles/unordered_bench_exec.dir/rule
+.PHONY : unordered_bench_exec
+
+# codegen rule for target.
+bench/CMakeFiles/unordered_bench_exec.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/unordered_bench_exec.dir/build.make bench/CMakeFiles/unordered_bench_exec.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=99,100 "Finished codegen for target unordered_bench_exec"
+.PHONY : bench/CMakeFiles/unordered_bench_exec.dir/codegen
+
+# clean rule for target.
+bench/CMakeFiles/unordered_bench_exec.dir/clean:
+	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/unordered_bench_exec.dir/build.make bench/CMakeFiles/unordered_bench_exec.dir/clean
+.PHONY : bench/CMakeFiles/unordered_bench_exec.dir/clean
+
+#=============================================================================
 # Target rules for target _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir
 
 # All Build rule for target.
 _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/all:
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=80,81,82,83,84,85,86,87,88,89,90,91,92,93,94 "Built target benchmark"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=79,80,81,82,83,84,85,86,87,88,89,90,91,92 "Built target benchmark"
 .PHONY : _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/all
 
 # Build rule for subdir invocation for target.
 _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 15
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 14
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles 0
 .PHONY : _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/rule
@@ -1323,7 +1360,7 @@ benchmark: _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/rule
 # codegen rule for target.
 _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=80,81,82,83,84,85,86,87,88,89,90,91,92,93,94 "Finished codegen for target benchmark"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=79,80,81,82,83,84,85,86,87,88,89,90,91,92 "Finished codegen for target benchmark"
 .PHONY : _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/codegen
 
 # clean rule for target.
@@ -1338,7 +1375,7 @@ _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/clean:
 _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/all: _deps/googlebenchmark-build/src/CMakeFiles/benchmark.dir/all
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=95 "Built target benchmark_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=93,94 "Built target benchmark_main"
 .PHONY : _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/all
 
 # Build rule for subdir invocation for target.
@@ -1355,7 +1392,7 @@ benchmark_main: _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/ru
 # codegen rule for target.
 _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/build.make _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=95 "Finished codegen for target benchmark_main"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/michaelspeckhart/Developer/Projects/StrataDB/build/CMakeFiles --progress-num=93,94 "Finished codegen for target benchmark_main"
 .PHONY : _deps/googlebenchmark-build/src/CMakeFiles/benchmark_main.dir/codegen
 
 # clean rule for target.

@@ -608,6 +608,19 @@ stratakv_bench_exec/fast:
 .PHONY : stratakv_bench_exec/fast
 
 #=============================================================================
+# Target rules for targets named unordered_bench_exec
+
+# Build rule for target.
+unordered_bench_exec: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 unordered_bench_exec
+.PHONY : unordered_bench_exec
+
+# fast build rule for target.
+unordered_bench_exec/fast:
+	$(MAKE) $(MAKESILENT) -f bench/CMakeFiles/unordered_bench_exec.dir/build.make bench/CMakeFiles/unordered_bench_exec.dir/build
+.PHONY : unordered_bench_exec/fast
+
+#=============================================================================
 # Target rules for targets named benchmark
 
 # Build rule for target.
@@ -706,6 +719,7 @@ help:
 	@echo "... stratakv"
 	@echo "... stratakv_bench_exec"
 	@echo "... stratakv_tests"
+	@echo "... unordered_bench_exec"
 	@echo "... src/simple_hash_table.o"
 	@echo "... src/simple_hash_table.i"
 	@echo "... src/simple_hash_table.s"

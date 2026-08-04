@@ -1,6 +1,6 @@
 #pragma once
 
-#include "numa_table_entry.h"
+#include "../numa_table_entry.h"
 #include <cstdint>
 #include <vector>
 

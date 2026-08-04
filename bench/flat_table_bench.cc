@@ -7,8 +7,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include "arena_allocator.h"
-#include "flat_swiss_table.h"
+#include "../stratakv/memory/arena_allocator.h"
+#include "../stratakv/container/flat_swiss_table.h"
 
 #include <random>
 #include <cstdint>
