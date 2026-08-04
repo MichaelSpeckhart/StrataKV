@@ -80,3 +80,5 @@ Makefile
 *.name
 *.exe
 /misc/
+
+.cache
